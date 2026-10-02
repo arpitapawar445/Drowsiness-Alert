@@ -1,0 +1,19 @@
+# Virtual Environments
+venv/
+env/
+.venv/
+
+# Python Cache
+__pycache__/
+*.py[cod]
+*$py.class
+
+# VS Code settings
+.vscode/
+
+# Environment variables
+.env
+
+# Media/Test outputs (optional, but good if you generate test videos/images)
+*.mp4
+*.avi
