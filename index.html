@@ -37,9 +37,13 @@
         display: flex; justify-content: center; align-items: center;
         box-shadow: 0 8px 20px rgba(138, 43, 226, 0.5);
       }
-      #cam, #overlay {
+      #cam {
         position: absolute; inset: 0; width: 100%; height: 100%;
         object-fit: cover; border-radius: 20px; transform: scaleX(-1);
+      }
+      #overlay {
+        position: absolute; inset: 0; width: 100%; height: 100%;
+        object-fit: cover; border-radius: 20px;
       }
       #placeholder { color: #888; text-align: center; padding: 20px; font-size: 15px; z-index: 1; }
       .hud {
@@ -105,11 +109,6 @@
   </head>
   <body>
     <header>DROWSINESS DETECTION</header>
-    <p class="note">
-      Runs <b>100% in your browser</b> — no server needed, camera never leaves your device.
-      Allow camera access, face the camera, and keep eyes open. Tune <code>EAR threshold</code> if alerts are too sensitive.
-      Works on this page locally and on GitHub Pages over <code>https</code>.
-    </p>
 
     <div class="stage-wrapper">
       <div class="stage">
@@ -179,8 +178,9 @@
 
       function dist(a, b) { return Math.hypot(a.x - b.x, a.y - b.y); }
       function earOf(lm, idx) {
-        const p1 = lm[idx[1]], p2 = lm[idx[2]], p3 = lm[idx[4]], p4 = lm[idx[5]], p5 = lm[idx[0]], p6 = lm[idx[3]];
-        const A = dist(p2, p4), B = dist(p1, p3), C = dist(p5, p6);
+        // idx = [outer, upper1, upper2, inner, lower2, lower1]
+        // vertical pairs: upper1-lower1, upper2-lower2
+        const A = dist(lm[idx[2]], lm[idx[4]]), B = dist(lm[idx[1]], lm[idx[5]]), C = dist(lm[idx[0]], lm[idx[3]]);
         return C === 0 ? 0 : (A + B) / (2 * C);
       }
 
@@ -270,7 +270,9 @@
           ctx.clearRect(0, 0, canvas.width, canvas.height);
           if (hasFace) {
             const px = (v, w) => v * w;
-            const x0 = px(box.x0, canvas.width) - 14, x1 = px(box.x1, canvas.width) + 14;
+            // video is mirrored via CSS, overlay is not -> mirror x to match display
+            const mx0 = 1 - box.x1, mx1 = 1 - box.x0;
+            const x0 = px(mx0, canvas.width) - 14, x1 = px(mx1, canvas.width) + 14;
             const y0 = px(box.y0, canvas.height) - 14, y1 = px(box.y1, canvas.height) + 14;
             ctx.strokeStyle = "#00e676"; ctx.lineWidth = 4;
             ctx.strokeRect(x0, y0, x1 - x0, y1 - y0);
