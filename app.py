@@ -25,7 +25,7 @@ TWILIO_NUM = os.getenv("TWILIO_FROM_NUMBER", "+13187589602")
 ALERT_PHONE = os.getenv("DROWSINESS_ALERT_PHONE", "+918291155210")
 
 
-client = Client(TWILIO_SID, TWILIO_AUTH)
+client = Client(account_sid, auth_token) if account_sid and auth_token else None
 last_sms_time = None  # For rate limiting
 
 # Optional: face_recognition for registered-driver verification
@@ -119,6 +119,9 @@ else:
 # ----------------------------
 def send_sms_alert():
     global last_sms_time
+    if client is None:
+        print("[INFO] Twilio credentials not set (TWILIO_ACCOUNT_SID / TWILIO_AUTH_TOKEN); skipping SMS alert.")
+        return
     now = datetime.now()
     if last_sms_time is None or now - last_sms_time >= timedelta(minutes=1):
         try:
