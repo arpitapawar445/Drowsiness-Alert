@@ -127,9 +127,10 @@
     <div class="card">Driver: <span id="driver">Ready</span></div>
 
     <div class="panel">
-      <label>EAR threshold <input id="threshold" type="range" min="0.15" max="0.35" step="0.01" value="0.25" /> <b id="thresholdVal">0.25</b></label>
+      <label>EAR threshold <input id="threshold" type="range" min="0.15" max="0.60" step="0.01" value="0.35" /> <b id="thresholdVal">0.35</b></label>
       <label>Alert after <input id="alertSecs" type="range" min="1" max="4" step="0.5" value="1.5" /> <b id="alertSecsVal">1.5s</b></label>
       <label><input id="soundOn" type="checkbox" checked /> Sound + voice</label>
+      <button id="calibBtn" type="button" style="padding:8px 18px;font-size:14px;background:linear-gradient(135deg,#ff9800,#ff5722)">📏 Calibrate</button>
     </div>
 
     <div class="controls">
@@ -256,7 +257,18 @@
         if (on === alertActive) return;
         alertActive = on;
         statusEl.style.display = on ? "block" : "none";
-        if (on) { speakAlert(); startBeep(); } else { stopBeep(); }
+        if (on) {
+          speakAlert(); startBeep();
+          // Fire-and-forget SMS via Flask backend (works on http://127.0.0.1:5000).
+          // On GitHub Pages there is no backend, so failures are silently ignored.
+          try {
+            fetch("/api/drowsy-alert", {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({ ear: Number(earEl.textContent) || null }),
+            }).catch(() => {});
+          } catch {}
+        } else { stopBeep(); }
       }
 
       function sizeCanvas() {

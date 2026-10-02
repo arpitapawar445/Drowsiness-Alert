@@ -1,5 +1,5 @@
 # app.py
-from flask import Flask, Response, send_from_directory
+from flask import Flask, Response, send_from_directory, request, jsonify
 from flask_socketio import SocketIO
 import cv2
 import mediapipe as mp
@@ -121,7 +121,7 @@ def send_sms_alert():
     global last_sms_time
     if client is None:
         print("[INFO] Twilio credentials not set (TWILIO_ACCOUNT_SID / TWILIO_AUTH_TOKEN); skipping SMS alert.")
-        return
+        return "no-credentials"
     now = datetime.now()
     if last_sms_time is None or now - last_sms_time >= timedelta(minutes=1):
         try:
@@ -132,6 +132,7 @@ def send_sms_alert():
             )
             print("[INFO] SMS sent:", message.sid)
             last_sms_time = now
+            return "sent:" + message.sid
         except TwilioRestException as e:
             if e.code == 21660:
                 print(
@@ -140,8 +141,11 @@ def send_sms_alert():
                 )
             else:
                 print(f"[ERROR] Twilio SMS failed ({e.code}): {e.msg}")
+            return "error"
         except Exception as e:
             print("[ERROR] Twilio SMS failed:", e)
+            return "error"
+    return "rate-limited"
 
 # ----------------------------
 # Routes
@@ -149,6 +153,16 @@ def send_sms_alert():
 @app.route('/')
 def index():
     return send_from_directory('.', 'index.html')
+
+@app.route('/api/drowsy-alert', methods=['POST'])
+def drowsy_alert():
+    """Called by the browser page when drowsiness is detected.
+    Sends the Twilio SMS (rate-limited to 1/min). Works when the page is
+    served from this Flask server (http://127.0.0.1:5000). On GitHub Pages
+    there is no backend, so the page just skips this call."""
+    data = request.get_json(silent=True) or {}
+    status = send_sms_alert()
+    return jsonify({"sms": status, "ear": data.get("ear")})
 
 def gen_frames():
     cap = cv2.VideoCapture(0)
