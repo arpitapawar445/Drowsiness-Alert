@@ -135,6 +135,7 @@
     <div class="controls">
       <button id="startBtn">▶ Start Camera</button>
       <button id="stopBtn" disabled>⏹ Stop Camera</button>
+      <button id="testSoundBtn" type="button" style="background:linear-gradient(135deg,#8e2de2,#4a00e0)">🔊 Test sound</button>
     </div>
 
     <footer>&copy; 2025 <a href="#">Arpita Pawar</a>. All rights reserved. | Designed with ❤️</footer>
@@ -212,26 +213,42 @@
 
       function speakAlert() {
         if (!soundOn.checked || !("speechSynthesis" in window)) return;
-        window.speechSynthesis.cancel();
-        const u = new SpeechSynthesisUtterance("Warning. Driver drowsiness detected. Please take a break.");
-        u.rate = 0.95;
-        window.speechSynthesis.speak(u);
+        try {
+          window.speechSynthesis.cancel();
+          const u = new SpeechSynthesisUtterance("Warning. Driver drowsiness detected. Please take a break.");
+          u.rate = 0.95;
+          window.speechSynthesis.speak(u);
+        } catch {}
       }
-      function startBeep() {
-        if (!soundOn.checked) return;
-        stopBeep();
+      async function ensureAudio() {
         try {
           audioCtx = audioCtx || new (window.AudioContext || window.webkitAudioContext)();
-          if (audioCtx.state === "suspended") audioCtx.resume();
-          beepTimer = setInterval(() => {
-            const o = audioCtx.createOscillator(), g = audioCtx.createGain();
-            o.type = "sine"; o.frequency.value = 1000;
-            g.gain.setValueAtTime(0.25, audioCtx.currentTime);
-            g.gain.exponentialRampToValueAtTime(0.001, audioCtx.currentTime + 0.2);
-            o.connect(g); g.connect(audioCtx.destination);
-            o.start(); o.stop(audioCtx.currentTime + 0.22);
-          }, 280);
-        } catch {}
+          if (audioCtx.state === "suspended") await audioCtx.resume();
+        } catch (e) { console.warn("audio unlock failed", e); }
+        return audioCtx;
+      }
+      function beepOnce() {
+        if (!audioCtx || audioCtx.state !== "running") return;
+        try {
+          const o = audioCtx.createOscillator(), g = audioCtx.createGain();
+          o.type = "square"; o.frequency.value = 880;
+          g.gain.setValueAtTime(0.4, audioCtx.currentTime);
+          g.gain.exponentialRampToValueAtTime(0.001, audioCtx.currentTime + 0.25);
+          o.connect(g); g.connect(audioCtx.destination);
+          o.start(); o.stop(audioCtx.currentTime + 0.27);
+        } catch (e) { console.warn("beep failed", e); }
+      }
+      async function startBeep() {
+        if (!soundOn.checked) return;
+        stopBeep();
+        await ensureAudio();
+        if (!soundOn.checked) return;
+        if (!audioCtx || audioCtx.state !== "running") {
+          console.warn("AudioContext not running:", audioCtx && audioCtx.state);
+          return;
+        }
+        beepOnce();
+        beepTimer = setInterval(beepOnce, 400);
       }
       function stopBeep() { if (beepTimer) { clearInterval(beepTimer); beepTimer = null; } }
 
@@ -305,6 +322,7 @@
       startBtn.addEventListener("click", async () => {
         startBtn.disabled = true;
         try {
+          await ensureAudio(); // unlock sound inside user gesture (fixes Chrome autoplay block)
           if (!landmarker) { modelStatus.textContent = "Loading face model…"; await loadModel(); }
           if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
             throw new Error("Camera API needs https or localhost. If you opened this as a file, please serve over https (GitHub Pages works).");
@@ -341,6 +359,21 @@
         liveBadge.style.display = "none";
         startBtn.disabled = false; stopBtn.disabled = true;
         if ("speechSynthesis" in window) window.speechSynthesis.cancel();
+      });
+
+      soundOn.addEventListener("change", () => {
+        if (!soundOn.checked) { stopBeep(); if ("speechSynthesis" in window) window.speechSynthesis.cancel(); }
+        else if (alertActive) { speakAlert(); startBeep(); }
+      });
+
+      document.getElementById("testSoundBtn").addEventListener("click", async () => {
+        await ensureAudio();
+        if (!audioCtx || audioCtx.state !== "running") {
+          alert("Browser blocked sound. Click the lock/tune icon in the address bar and allow Sound, then try again.");
+          return;
+        }
+        beepOnce();
+        speakAlert();
       });
 
       loadModel().catch((e) => { console.error(e); modelStatus.textContent = "Model failed to preload — will retry on Start."; });
